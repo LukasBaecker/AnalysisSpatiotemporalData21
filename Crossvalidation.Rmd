@@ -1,0 +1,96 @@
+Cross-Validation with Trainingdata
+```{r}
+setwd('D:/astd-master')
+rm(list=ls())
+library(raster)
+library(caret)
+library(mapview)
+library(sf)
+
+raster <- stack("NDVI_2019_2020_stack.tif")
+rasterSemiAnnual <- stack("NDVI_2019_2020_stack_semiannual.tif")
+training <- read_sf("traindata.shp")
+
+print(raster)
+print(training)
+
+viewRGB(raster, r =1 , g = 2, b = 1, map.types = "Esri.WorldImagery")+
+  mapview(training)
+
+extr <- extract(raster, training, df=TRUE)
+extr <- merge(extr, training, by.x="ID", by.y="id")
+head(extr)
+
+set.seed(100)
+trainids <- createDataPartition(extr$type,list=FALSE,p=0.3)
+trainDat <- extr[trainids,]
+testDat <- extr[-trainids,]
+
+boxplot(trainDat$NDVI_2019_2020_stack.1~trainDat$type,las=2)
+boxplot(trainDat$NDVI_2019_2020_stack.2~trainDat$type,las=2)
+
+featurePlot(x = trainDat[, c("NDVI_2019_2020_stack.1","NDVI_2019_2020_stack.2")], 
+            y = factor(trainDat$type), 
+            plot = "pairs",
+            auto.key = list(columns = 4))
+
+predictors <- c('NDVI_2019_2020_stack.1', 'NDVI_2019_2020_stack.2')
+response <- "type"
+
+set.seed(100)
+model <- train(trainDat[,predictors],trainDat[,response],method="rf",
+               trControl=trainControl(method="cv"),importance=TRUE)
+print(model)
+plot(model)
+plot(varImp(model))
+
+prediction <- predict(raster,model)
+prediction
+plot(prediction)
+spplot(prediction)
+
+#Validation
+pred_valid <- predict(model,testDat)
+table(testDat$type,pred_valid)
+
+######
+#Validation for semiannual data
+
+extr <- extract(rasterSemiAnnual, training, df=TRUE)
+extr <- merge(extr, training, by.x="ID", by.y="id")
+head(extr)
+
+set.seed(100)
+trainids <- createDataPartition(extr$type,list=FALSE,p=0.3)
+trainDat <- extr[trainids,]
+testDat <- extr[-trainids,]
+
+boxplot(trainDat$NDVI_2019_2020_stack.1~trainDat$type,las=2)
+boxplot(trainDat$NDVI_2019_2020_stack.2~trainDat$type,las=2)
+
+featurePlot(x = trainDat[, c("NDVI_2019_2020_stack_semiannual.1","NDVI_2019_2020_stack_semiannual.2")], 
+            y = factor(trainDat$type), 
+            plot = "pairs",
+            auto.key = list(columns = 4))
+
+predictors <- c('NDVI_2019_2020_stack_semiannual.1', 'NDVI_2019_2020_stack_semiannual.2')
+response <- "type"
+
+set.seed(100)
+model <- train(trainDat[,predictors],trainDat[,response],method="rf",
+               trControl=trainControl(method="cv"),importance=TRUE)
+print(model)
+plot(model)
+plot(varImp(model))
+
+prediction <- predict(rasterSemiAnnual,model)
+prediction
+plot(prediction)
+spplot(prediction)
+
+#Validation
+pred_valid <- predict(model,testDat)
+table(testDat$type,pred_valid)
+
+
+```

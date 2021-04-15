@@ -1,0 +1,297 @@
+Final project
+
+
+Code to check deforestation based on raster calculations and semi-annual NDVI layers
+
+```{r}
+library(gdalcubes)
+library(magrittr)
+gdalcubes_options(threads=8)
+
+IMAGE_DIR = "L8_cropped" # please change
+
+col = create_image_collection(list.files(IMAGE_DIR, recursive = TRUE, pattern=".tif", full.names  = TRUE), "L8_SR")
+
+# only use "clear" pixels
+L8.clear_mask = image_mask("PIXEL_QA", values=c(322, 386, 834, 898, 1346, 324, 388, 836, 900, 1348), invert = TRUE)
+
+# example yearly data cube at 25m spatial resolution
+v25 = cube_view(srs="EPSG:3857", extent=col, dx=25, dy=25, dt="P6M", resampling = "average", aggregation = "median")
+
+# calculate NDVI and export as GeoTIFF files at subfolder "L8cube"
+raster_cube(col, v25, L8.clear_mask) %>%
+  select_bands(c("B04", "B05")) %>%
+  apply_pixel("(B05-B04)/(B05+B04)") %>%
+  write_tif("L8cube/semi_annual/25m",prefix = "NDVI_")
+```
+
+We can read this with package stars, and visualise as:
+
+```{r}
+# remotes::install_github("r-spatial/stars")
+library(stars)
+subdir = "L8cube/semi_annual/25m"
+f = paste0(subdir, "/", list.files(subdir))
+(st = read_stars(f))
+plot(merge(st))
+plot(merge(st), breaks = "equal")
+```
+
+Getting the Forest layer by checking if a pixel got a NDVI higher than a threshold, to then find deforested areas from half-year to half-year.
+```{r}
+library(stars)
+library(raster)
+library(ggplot2)
+threshold = 0.8
+subdir = "/L8cube/25m"
+f = paste0(subdir, "/", list.files(subdir))
+(st = read_stars(f))
+image2013_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2013-04.tif")
+image2014_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2014-04.tif")
+image2015_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2015-04.tif")
+image2016_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2016-04.tif")
+image2017_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2017-04.tif")
+image2018_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2018-04.tif")
+image2019_04 =raster(x = "L8cube/semi_annual/25m/NDVI_2019-04.tif")
+image2013_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2013-10.tif")
+image2014_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2014-10.tif")
+image2015_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2015-10.tif")
+image2016_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2016-10.tif")
+image2017_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2017-10.tif")
+image2018_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2018-10.tif")
+image2019_10 =raster(x = "L8cube/semi_annual/25m/NDVI_2019-10.tif")
+
+hist2013_04 <- hist(image2013_04, plot = FALSE)
+hist2014_04 <- hist(image2014_04, plot = FALSE)
+hist2015_04 <- hist(image2015_04, plot = FALSE)
+hist2016_04 <- hist(image2016_04, plot = FALSE)
+hist2017_04 <- hist(image2017_04, plot = FALSE)
+hist2018_04 <- hist(image2018_04, plot = FALSE)
+hist2019_04 <- hist(image2019_04, plot = FALSE)
+hist2013_10 <- hist(image2013_10, plot = FALSE)
+hist2014_10 <- hist(image2014_10, plot = FALSE)
+hist2015_10 <- hist(image2015_10, plot = FALSE)
+hist2016_10 <- hist(image2016_10, plot = FALSE)
+hist2017_10 <- hist(image2017_10, plot = FALSE)
+hist2018_10 <- hist(image2018_10, plot = FALSE)
+hist2019_10 <- hist(image2019_10, plot = FALSE)
+
+plot(hist2013_04, col = "green")
+plot(hist2014_04, col = "blue")
+plot(hist2015_04, col = "red", add = TRUE) 
+plot(hist2016_04, col = "purple", add = TRUE) 
+plot(hist2017_04, col = "yellow", add = TRUE) 
+plot(hist2018_04, col = "orange", add = TRUE) 
+plot(hist2019_04, col = "grey", add = TRUE) 
+plot(hist2013_10, col = "green")
+plot(hist2014_10, col = "blue")
+plot(hist2015_10, col = "red", add = TRUE) 
+plot(hist2016_10, col = "purple", add = TRUE) 
+plot(hist2017_10, col = "yellow", add = TRUE) 
+plot(hist2018_10, col = "orange", add = TRUE) 
+plot(hist2019_10, col = "grey", add = TRUE) 
+
+
+forest2013_04 <- image2013_04 >= threshold
+forest2014_04 <- image2014_04 >= threshold
+forest2015_04 <- image2015_04 >= threshold
+forest2016_04 <- image2016_04 >= threshold
+forest2017_04 <- image2017_04 >= threshold
+forest2018_04 <- image2018_04 >= threshold
+forest2019_04 <- image2019_04 >= threshold
+forest2013_10 <- image2013_10 >= threshold
+forest2014_10 <- image2014_10 >= threshold
+forest2015_10 <- image2015_10 >= threshold
+forest2016_10 <- image2016_10 >= threshold
+forest2017_10 <- image2017_10 >= threshold
+forest2018_10 <- image2018_10 >= threshold
+forest2019_10 <- image2019_10 >= threshold
+
+numberForest2013_04 <- freq(forest2013_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2014_04 <- freq(forest2014_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2015_04 <- freq(forest2015_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2016_04 <- freq(forest2016_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2017_04 <- freq(forest2017_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2018_04 <- freq(forest2018_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2019_04 <- freq(forest2019_04, digits=0, value=1, useNA='ifany', progress='')
+numberForest2013_10 <- freq(forest2013_10, digits=0, value=1, useNA='ifany', progress='')
+numberForest2014_10 <- freq(forest2014_10, digits=0, value=1, useNA='ifany', progress='')
+numberForest2015_10 <- freq(forest2015_10, digits=0, value=1, useNA='ifany', progress='')
+numberForest2016_10 <- freq(forest2016_10, digits=0, value=1, useNA='ifany', progress='')
+numberForest2017_10 <- freq(forest2017_10, digits=0, value=1, useNA='ifany', progress='')
+numberForest2018_10 <- freq(forest2018_10, digits=0, value=1, useNA='ifany', progress='')
+numberForest2019_10 <- freq(forest2019_10, digits=0, value=1, useNA='ifany', progress='')
+
+numberForestPixels <- c(numberForest2013_04,numberForest2014_04,numberForest2015_04,numberForest2016_04,numberForest2017_04,numberForest2018_04,numberForest2019_04,numberForest2013_10,numberForest2014_10,numberForest2015_10,numberForest2016_10,numberForest2017_10,numberForest2018_10,numberForest2019_10)
+year <- c("2013 H1", "2013 H2", "2014 H1", "2014 H2", "2015 H1", "2015 H2", "2016 H1", "2016 H2", "2017 H1", "2017 H2", "2018 H1", "2018 H2", "2019 H1", "2019 H2")
+data <- data.frame(year,numberForestPixels)
+ggplot(data, aes(x=year, y=numberForestPixels),) +
+  geom_line()+
+  ggtitle("Development of Forest Pixels in the Research Area")
+
+
+forestStack <- stack(forest2013_04, forest2013_10, forest2014_04, forest2014_10, forest2015_04, forest2015_10, forest2016_04, forest2016_10, forest2017_04, forest2017_10, forest2018_04, forest2018_10, forest2019_04, forest2019_10)
+
+plot(forestStack)
+
+#one pixel has 25m per 25m
+pixelDim <- (25*25)
+#the total number of pixel could be read from any forestArea. ncell is the number of cells
+totalPixel <- ncell(forest2013_04)
+#calculate the total area of one raster picture in qm
+totalArea <- totalPixel*pixelDim
+#qm into ha
+totalAreaHa <- totalArea/10000
+
+#calculate the area that is covered by forest in ha in percent 
+forestArea2013_04 <- (numberForest2013_04*pixelDim/10000)/totalAreaHa*100
+forestArea2014_04 <- (numberForest2014_04*pixelDim/10000)/totalAreaHa*100
+forestArea2015_04 <- (numberForest2015_04*pixelDim/10000)/totalAreaHa*100
+forestArea2016_04 <- (numberForest2016_04*pixelDim/10000)/totalAreaHa*100
+forestArea2017_04 <- (numberForest2017_04*pixelDim/10000)/totalAreaHa*100
+forestArea2018_04 <- (numberForest2018_04*pixelDim/10000)/totalAreaHa*100
+forestArea2019_04 <- (numberForest2019_04*pixelDim/10000)/totalAreaHa*100
+forestArea2013_10 <- (numberForest2013_10*pixelDim/10000)/totalAreaHa*100
+forestArea2014_10 <- (numberForest2014_10*pixelDim/10000)/totalAreaHa*100
+forestArea2015_10 <- (numberForest2015_10*pixelDim/10000)/totalAreaHa*100
+forestArea2016_10 <- (numberForest2016_10*pixelDim/10000)/totalAreaHa*100
+forestArea2017_10 <- (numberForest2017_10*pixelDim/10000)/totalAreaHa*100
+forestArea2018_10 <- (numberForest2018_10*pixelDim/10000)/totalAreaHa*100
+forestArea2019_10 <- (numberForest2019_10*pixelDim/10000)/totalAreaHa*100
+
+forestAreaPercentage <- c(forestArea2013_04,forestArea2013_10,forestArea2014_04,forestArea2014_10,forestArea2015_04,forestArea2015_10,forestArea2016_04, forestArea2016_10,forestArea2017_04,forestArea2017_10,forestArea2018_04,forestArea2018_10,forestArea2019_04,forestArea2019_10)
+data <- data.frame(year,forestAreaPercentage)
+
+ggplot(data, aes(x=year, y=forestAreaPercentage),) +
+  geom_line()+
+  ggtitle("Development of Forest Pixels in the Research (in %)")
+
+ 
+#function to check if a cell was covered by forest in a "before" raster
+# and in "after" raster not covered by forest
+# then the function returns 1
+# otherwise it returns 0
+deforestDetection <- function(before, after) {
+  isDeforested <- (before==1 & after == 0)
+  return(isDeforested)
+}
+deforestation2013_10 <- deforestDetection(forest2013_04,forest2013_10)
+deforestation2014_04 <- deforestDetection(forest2013_10,forest2014_04)
+deforestation2014_10 <- deforestDetection(forest2014_04,forest2014_10)
+deforestation2015_04 <- deforestDetection(forest2014_10,forest2015_04)
+deforestation2015_10 <- deforestDetection(forest2015_04,forest2015_10)
+deforestation2016_04 <- deforestDetection(forest2015_10,forest2016_04)
+deforestation2016_10 <- deforestDetection(forest2016_04,forest2016_10)
+deforestation2017_04 <- deforestDetection(forest2016_10,forest2017_04)
+deforestation2017_10 <- deforestDetection(forest2017_04,forest2017_10)
+deforestation2018_04 <- deforestDetection(forest2017_10,forest2018_04)
+deforestation2018_10 <- deforestDetection(forest2018_04,forest2018_10)
+deforestation2019_04 <- deforestDetection(forest2018_10,forest2019_04)
+deforestation2019_10 <- deforestDetection(forest2019_04,forest2019_10)
+deforestationStack <- stack(deforestation2013_10, deforestation2014_04, deforestation2014_10,deforestation2015_04, deforestation2015_10,deforestation2016_04, deforestation2016_10,deforestation2017_04, deforestation2017_10,deforestation2018_04, deforestation2018_10,deforestation2019_04, deforestation2019_10)
+colors <- c("white","red")
+
+plot(deforestationStack, col=colors, legend=FALSE, main=c("Deforested Areas (red) \n 2013 H1 to 2013 H2","2013 H2 to 2014 H1","2014 H1 to 2014 H2","2014 H2 to 2015 H1","2015 H1 to 2015 H2", "2015 H2 to 2016 H1", "2016 H1 to 2016 H2", "2016 H2 to 2017 H1", "2017 H1 to 2017 H2", "2017 H2 to 2018 H1", "2018 H1 to 2018 H2", "2018 H2 to 2019 H1", "2019 H1 to 2019 H2"))
+#mtext("Histograms",side=3,line=-22,outer=TRUE)
+
+deforestationAll <- deforestation2013_10 | deforestation2014_04 |deforestation2014_10 | deforestation2015_04 |deforestation2015_10 | deforestation2016_04 |deforestation2016_10 | deforestation2017_04 |deforestation2017_10 | deforestation2018_04 |deforestation2018_10 | deforestation2019_04 |deforestation2019_10 |
+
+plot(deforestationAll, col=colors, legend=FALSE, main="Overall Devorestion (2013-2019)")
+```
+Smooth the raster layer with a window function to make the data less brittle.
+```{r}
+library(raster)
+w <- matrix(c(1,1,1,1,1,1,1,1,1), nr=3,nc=3)
+
+functionDeforest <- function (x){
+  center <- x[4]
+    if (center==0 | is.na(center)) { # handle NA values
+    return(center)
+  } 
+
+  ncells <- sum(x, na.rm=TRUE)
+
+  if (ncells<5) { #  window with with less than 5 cells die
+    return(0)
+  } else if (ncells > 4) { # window with 5 or more cells live
+    return(1)
+  }
+}
+
+deforestSmoothing <- function(x) {
+	f <- focal(x, w=w, fun=functionDeforest, pad=TRUE, padValue=0)
+}
+
+smoothedDeforestation <- deforestSmoothing(deforestationAll)
+plot(smoothedDeforestation, col=colors, legend=FALSE, main="Overall Devorestion smoothed (2013-2019)")
+
+wND <- matrix(c(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1), nr=5,nc=5)
+
+functionNaturalDeforest <- function (x){
+  center <- x[4]
+    if (center==0 | is.na(center)) { # handle NA values
+    return(center)
+  } 
+
+  ncells <- sum(x, na.rm=TRUE)
+
+  if (ncells<20) { #  window with with less than 5 cells die
+    return(1)
+  } else if (ncells > 19) { # window with 5 or more cells live
+    return(2)
+  }
+}
+naturalDeforestingSmoothing <- function(x) {
+	f <- focal(x, w=wND, fun=functionNaturalDeforest, pad=TRUE, padValue=0)
+}
+
+smoothedNaturalDeforestation <- naturalDeforestingSmoothing(smoothedDeforestation)
+colors <- c("white","yellow", "red")
+plot(smoothedNaturalDeforestation, legend=FALSE, col=colors, main="Natural Forest Dieback vs. Deforestion (2013-2019)")
+```
+Now, take a new Satellite Image and process it to check for deforestation
+```{r}
+library(gdalcubes)
+library(magrittr)
+library(stars)
+library(raster)
+library(ggplot2)
+
+imageNEW =raster(x = "L8cube/newImageSAVED/25m/NDVI_2020-05.tif")
+
+#show the histogram of the numbers of pixels with their NDVI value
+#histNEW <- hist(imageNEW, plot = FALSE)
+#plot(histNEW, col = "green")
+threshold <- 0.8
+#get a logical layer weather it is forest or not depending on the NDVI threshold
+forestNEW <- imageNEW >= threshold
+#count the number of cells that are detected as forest
+numberForestNEW <- freq(forestNEW, digits=0, value=1, useNA='ifany', progress='')
+
+#Pixeldimension: one pixel has 25m per 25m
+pixelDim <- (25*25)
+#the total number of pixel could be read from any forestArea. ncell is the number of cells
+totalPixel <- ncell(forestNEW)
+#calculate the total area of one raster picture in qm
+totalArea <- totalPixel*pixelDim
+#qm into ha
+totalAreaHa <- totalArea/10000
+
+#calculate the area that is covered by forest in ha in percent 
+forestAreaNEW <- (numberForestNEW*pixelDim/10000)/totalAreaHa*100
+
+#get the same extend of the layers
+forestNEWCroppedSemiannual <- crop(forestNEW, forest2019_04)
+forest2019_04Resampled <- resample(forest2019_04,forestNEWCroppedSemiannual, resample='bilinear')
+
+#use the deforestDetection function to calculate the deforestation from the year 2019 to the newly input picture
+deforestationNEWSemiannual_04 <- deforestDetection(forest2019_04Resampled, forestNEWCroppedSemiannual)
+colors <- c("white","red")
+plot(deforestationNEWSemiannual_04, col=colors, legend=FALSE, main="Deforestion in 2020")
+
+smoothedDeforestationNEW_04 <- deforestSmoothing(deforestationNEWSemiannual_04)
+smoothedNaturalDeforestationNEW_04 <- naturalDeforestingSmoothing(smoothedDeforestationNEW_04)
+colors <- c("white","yellow", "red")
+plot(smoothedNaturalDeforestationNEW_04, legend=FALSE, col=colors, main="Natural Forest Dieback vs. Deforestion (2020)")
+writeRaster(smoothedNaturalDeforestationNEW_04,'deforestation2020SemiAnnual_04.tif', overwrite=TRUE)
+```
